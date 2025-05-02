@@ -1,6 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { authAPI } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -13,88 +14,81 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     // Check if user is already logged in from localStorage
     const storedUser = localStorage.getItem('lmsUser');
-    if (storedUser) {
+    const storedToken = localStorage.getItem('lmsUserToken');
+    
+    if (storedUser && storedToken) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (error) {
         console.error('Failed to parse stored user', error);
         localStorage.removeItem('lmsUser');
+        localStorage.removeItem('lmsUserToken');
       }
     }
     setLoading(false);
   }, []);
   
-  // In a real app, these functions would make API calls to your backend
   const login = async (credentials) => {
     try {
       setLoading(true);
-      // This is a mock login - in a real app you'd call your API
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          // Hardcoded users for demo purposes
-          if (credentials.username === 'admin' && credentials.password === 'admin123') {
-            const userData = { 
-              id: '1', 
-              username: 'admin', 
-              role: 'ADMIN', 
-              name: 'Admin User',
-              email: 'admin@lms.com',
-              token: 'mock-jwt-token-admin'
-            };
-            setUser(userData);
-            localStorage.setItem('lmsUser', JSON.stringify(userData));
-            toast.success('Logged in as Admin');
-            resolve({ success: true });
-          } else if (credentials.username === 'student' && credentials.password === 'student123') {
-            const userData = { 
-              id: '2', 
-              username: 'student', 
-              role: 'STUDENT', 
-              name: 'Student User',
-              email: 'student@lms.com',
-              token: 'mock-jwt-token-student',
-              enrolledCourses: []
-            };
-            setUser(userData);
-            localStorage.setItem('lmsUser', JSON.stringify(userData));
-            toast.success('Logged in as Student');
-            resolve({ success: true });
-          } else {
-            toast.error('Invalid credentials');
-            resolve({ success: false, message: 'Invalid credentials' });
-          }
-          setLoading(false);
-        }, 1000);
-      });
+      const response = await authAPI.login(credentials.username, credentials.password);
+      
+      if (response.status === 200 && response.data) {
+        const userData = {
+          id: response.data.id,
+          username: response.data.username,
+          role: response.data.role,
+          name: response.data.name,
+          email: response.data.email,
+          token: response.data.token,
+          enrolledCourses: []
+        };
+        
+        setUser(userData);
+        localStorage.setItem('lmsUser', JSON.stringify(userData));
+        localStorage.setItem('lmsUserToken', response.data.token);
+        toast.success(`Logged in as ${userData.role}`);
+        return { success: true };
+      } else {
+        toast.error('Login failed');
+        return { success: false, message: 'Login failed' };
+      }
     } catch (error) {
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.message || 'Invalid credentials';
+      toast.error(errorMessage);
+      return { success: false, message: errorMessage };
+    } finally {
       setLoading(false);
-      toast.error('Login failed');
-      return { success: false, message: error.message };
     }
   };
   
   const register = async (userData) => {
     try {
       setLoading(true);
-      // This is a mock registration - in a real app you'd call your API
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          // In a real app, this would be handled by your backend
-          toast.success('Registration successful! Please log in.');
-          setLoading(false);
-          resolve({ success: true });
-        }, 1000);
-      });
+      const response = await authAPI.register(userData);
+      
+      if (response.status === 200) {
+        toast.success('Registration successful! Please log in.');
+        return { success: true };
+      } else {
+        toast.error('Registration failed');
+        return { success: false, message: 'Registration failed' };
+      }
     } catch (error) {
+      console.error('Registration error:', error);
+      const errorMessage = error.response?.data?.message || 'Registration failed';
+      toast.error(errorMessage);
+      return { success: false, message: errorMessage };
+    } finally {
       setLoading(false);
-      toast.error('Registration failed');
-      return { success: false, message: error.message };
     }
   };
   
   const logout = () => {
     setUser(null);
     localStorage.removeItem('lmsUser');
+    localStorage.removeItem('lmsUserToken');
     toast.info('Logged out successfully');
   };
   
@@ -110,23 +104,32 @@ export const AuthProvider = ({ children }) => {
     return !!user;
   };
 
-  // Mock function to enroll a student in a course
-  const enrollInCourse = (courseId) => {
+  // Now we'll use the actual API for enrollment
+  const enrollInCourse = async (courseId) => {
     if (!user || user.role !== 'STUDENT') {
       toast.error('Only students can enroll in courses');
       return false;
     }
     
-    // In a real app, this would be an API call
-    const updatedUser = {
-      ...user,
-      enrolledCourses: [...(user.enrolledCourses || []), courseId]
-    };
-    
-    setUser(updatedUser);
-    localStorage.setItem('lmsUser', JSON.stringify(updatedUser));
-    toast.success('Successfully enrolled in course!');
-    return true;
+    try {
+      const { courseAPI } = await import('../services/api');
+      await courseAPI.enrollInCourse(courseId);
+      
+      // Update the user's enrolled courses list
+      const updatedUser = {
+        ...user,
+        enrolledCourses: [...(user.enrolledCourses || []), courseId]
+      };
+      
+      setUser(updatedUser);
+      localStorage.setItem('lmsUser', JSON.stringify(updatedUser));
+      toast.success('Successfully enrolled in course!');
+      return true;
+    } catch (error) {
+      console.error('Enrollment error:', error);
+      toast.error('Failed to enroll in course');
+      return false;
+    }
   };
   
   return (

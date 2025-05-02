@@ -1,23 +1,75 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CourseCard from './CourseCard';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../ui/input';
-import { Search } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 
 const CourseList = ({ isAdminView = false }) => {
   const { getAllCourses, getEnrolledCourses, getEnrollmentByCourseAndStudent, enrollStudent } = useData();
   const { user, enrollInCourse } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
+  const [courses, setCourses] = useState([]);
+  const [enrollments, setEnrollments] = useState({});
+  const [loading, setLoading] = useState(true);
   
-  const courses = getAllCourses();
-  const enrolledCourses = user && user.role === 'STUDENT' ? getEnrolledCourses(user.id) : [];
+  useEffect(() => {
+    fetchCourses();
+  }, []);
   
-  const handleEnroll = (courseId) => {
+  const fetchCourses = async () => {
+    setLoading(true);
+    try {
+      let fetchedCourses = [];
+      
+      // Get all courses
+      fetchedCourses = getAllCourses();
+      
+      // If user is a student, fetch enrollment data
+      if (user && user.role === 'STUDENT') {
+        fetchEnrollmentData(fetchedCourses);
+      }
+      
+      setCourses(fetchedCourses);
+    } catch (error) {
+      console.error('Error fetching courses:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const fetchEnrollmentData = async (coursesList) => {
+    try {
+      const enrollmentData = {};
+      
+      for (const course of coursesList) {
+        const enrollment = await getEnrollmentByCourseAndStudent(course.id, user.id);
+        if (enrollment) {
+          enrollmentData[course.id] = enrollment;
+        }
+      }
+      
+      setEnrollments(enrollmentData);
+    } catch (error) {
+      console.error('Error fetching enrollments:', error);
+    }
+  };
+  
+  const handleEnroll = async (courseId) => {
     if (user && user.role === 'STUDENT') {
-      enrollStudent(courseId, user.id);
-      enrollInCourse(courseId);
+      setLoading(true);
+      try {
+        const result = await enrollInCourse(courseId);
+        if (result) {
+          await enrollStudent(courseId, user.id);
+          await fetchCourses(); // Refresh courses after enrollment
+        }
+      } catch (error) {
+        console.error('Error enrolling in course:', error);
+      } finally {
+        setLoading(false);
+      }
     }
   };
   
@@ -25,6 +77,14 @@ const CourseList = ({ isAdminView = false }) => {
     course.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
     course.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+  
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin text-lms-primary" />
+      </div>
+    );
+  }
   
   return (
     <div>
@@ -45,11 +105,8 @@ const CourseList = ({ isAdminView = false }) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.map(course => {
-            const enrollment = user && user.role === 'STUDENT' 
-              ? getEnrollmentByCourseAndStudent(course.id, user.id)
-              : null;
-              
-            const isEnrolled = enrollment !== undefined;
+            const enrollment = enrollments[course.id];
+            const isEnrolled = !!enrollment;
             const progress = enrollment ? enrollment.progress : 0;
             
             return (
