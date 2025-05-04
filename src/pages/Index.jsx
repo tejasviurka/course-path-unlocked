@@ -42,12 +42,18 @@ const Index = () => {
   let enrolledCourses = [];
   
   if (data?.getAllCourses) {
-    courses = data.getAllCourses();
+    const coursesData = data.getAllCourses();
+    // Ensure courses is an array
+    courses = Array.isArray(coursesData) ? coursesData : [];
     
     if (user?.id && data.getEnrolledCourses) {
-      enrolledCourses = data.getEnrolledCourses(user.id);
+      const enrolled = data.getEnrolledCourses(user.id);
+      enrolledCourses = Array.isArray(enrolled) ? enrolled : [];
     }
   }
+  
+  // Get the featured courses (up to 3)
+  const featuredCourses = courses.slice(0, 3);
   
   return (
     <MainLayout>
@@ -111,40 +117,53 @@ const Index = () => {
             </Button>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {courses.slice(0, 3).map(course => (
-              <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                <div className="h-40 overflow-hidden">
-                  <img 
-                    src={course.thumbnail} 
-                    alt={course.title} 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <CardContent className="py-4">
-                  <h3 className="font-medium text-lg mb-1 line-clamp-1">{course.title}</h3>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-4">{course.description}</p>
-                  <div className="flex items-center text-sm text-gray-500 space-x-4 mb-4">
-                    <div className="flex items-center">
-                      <Clock className="h-4 w-4 mr-1" />
-                      <span>{course.duration}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-1" />
-                      <span>{course.enrolledStudents?.length || 0} students</span>
-                    </div>
+          {featuredCourses.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {featuredCourses.map(course => (
+                <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="h-40 overflow-hidden">
+                    <img 
+                      src={course.thumbnail} 
+                      alt={course.title} 
+                      className="w-full h-full object-cover"
+                    />
                   </div>
-                  <Button 
-                    variant="outline" 
-                    className="w-full" 
-                    onClick={() => navigate(`/courses/${course.id}`)}
-                  >
-                    Learn More
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <CardContent className="py-4">
+                    <h3 className="font-medium text-lg mb-1 line-clamp-1">{course.title}</h3>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-4">{course.description}</p>
+                    <div className="flex items-center text-sm text-gray-500 space-x-4 mb-4">
+                      <div className="flex items-center">
+                        <Clock className="h-4 w-4 mr-1" />
+                        <span>{course.duration}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <Users className="h-4 w-4 mr-1" />
+                        <span>{course.enrolledStudents?.length || 0} students</span>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      className="w-full" 
+                      onClick={() => navigate(`/courses/${course.id}`)}
+                    >
+                      Learn More
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">No courses available at the moment.</p>
+              <Button 
+                variant="link" 
+                className="mt-2" 
+                onClick={() => window.location.reload()}
+              >
+                Refresh
+              </Button>
+            </div>
+          )}
         </div>
       </section>
       
