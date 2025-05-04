@@ -170,12 +170,17 @@ export const DataProvider = ({ children }) => {
   };
 
   const getAllCourses = () => {
-    return courses;
+    // Always ensure we return an array
+    return Array.isArray(courses) ? courses : [];
   };
 
   const getCourseById = async (courseId) => {
+    if (!courseId) return null;
+    
     // First check if we have it in state
-    const cachedCourse = courses.find(course => course.id === courseId);
+    const cachedCourse = Array.isArray(courses) ? 
+      courses.find(course => course && course.id === courseId) : null;
+      
     if (cachedCourse) return cachedCourse;
     
     // If not, fetch from API (or use mock)
@@ -184,7 +189,7 @@ export const DataProvider = ({ children }) => {
         const mockCourse = MOCK_COURSES.find(course => course.id === courseId);
         if (mockCourse) {
           // Add to cache if not already there
-          if (!courses.some(c => c.id === mockCourse.id)) {
+          if (!courses.some(c => c && c.id === mockCourse.id)) {
             setCourses(prev => [...prev, mockCourse]);
           }
           return mockCourse;
@@ -194,7 +199,7 @@ export const DataProvider = ({ children }) => {
         const response = await courseAPI.getCourseById(courseId);
         if (response.status === 200) {
           // Add to cache
-          if (!courses.some(c => c.id === response.data.id)) {
+          if (!courses.some(c => c && c.id === response.data.id)) {
             setCourses(prev => [...prev, response.data]);
           }
           return response.data;

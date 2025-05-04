@@ -5,16 +5,16 @@ import CourseList from '../components/courses/CourseList';
 import { useAuth } from '../context/AuthContext';
 
 const Courses = () => {
-  const { isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   
   return (
     <MainLayout>
-      <div className="container mx-auto">
+      <div className="container mx-auto py-6">
         <h1 className="text-2xl font-bold mb-6">
-          {isAdmin() ? 'Manage Courses' : 'Available Courses'}
+          {isAdmin ? 'Manage Courses' : 'Available Courses'}
         </h1>
         
-        <CourseList isAdminView={isAdmin()} />
+        <CourseList isAdminView={user && isAdmin()} />
       </div>
     </MainLayout>
   );

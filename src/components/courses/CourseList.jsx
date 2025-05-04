@@ -5,6 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../ui/input';
 import { Search, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const CourseList = ({ isAdminView = false }) => {
   const data = useData();
@@ -30,23 +31,29 @@ const CourseList = ({ isAdminView = false }) => {
   const fetchCourses = async () => {
     setLoading(true);
     try {
-      let fetchedCourses = [];
-      
       // Get all courses
       if (getAllCourses) {
-        const courseData = getAllCourses();
+        const courseData = await getAllCourses();
+        
         // Ensure courses is an array
-        fetchedCourses = Array.isArray(courseData) ? courseData : [];
+        const fetchedCourses = Array.isArray(courseData) ? courseData : [];
+        setCourses(fetchedCourses);
+        
+        // Log courses for debugging
+        console.log('Fetched courses:', fetchedCourses);
+        
+        // If user is a student, fetch enrollment data
+        if (user && user.role === 'STUDENT' && getEnrollmentByCourseAndStudent) {
+          fetchEnrollmentData(fetchedCourses);
+        }
+      } else {
+        console.error('getAllCourses function not available');
+        toast.error('Error loading courses data');
+        setCourses([]);
       }
-      
-      // If user is a student, fetch enrollment data
-      if (user && user.role === 'STUDENT' && getEnrollmentByCourseAndStudent) {
-        fetchEnrollmentData(fetchedCourses);
-      }
-      
-      setCourses(fetchedCourses);
     } catch (error) {
       console.error('Error fetching courses:', error);
+      toast.error('Error loading courses');
       setCourses([]);
     } finally {
       setLoading(false);
@@ -60,9 +67,11 @@ const CourseList = ({ isAdminView = false }) => {
       const enrollmentData = {};
       
       for (const course of coursesList) {
-        const enrollment = await getEnrollmentByCourseAndStudent(course.id, user.id);
-        if (enrollment) {
-          enrollmentData[course.id] = enrollment;
+        if (course && course.id) {
+          const enrollment = await getEnrollmentByCourseAndStudent(course.id, user.id);
+          if (enrollment) {
+            enrollmentData[course.id] = enrollment;
+          }
         }
       }
       
@@ -73,7 +82,13 @@ const CourseList = ({ isAdminView = false }) => {
   };
   
   const handleEnroll = async (courseId) => {
-    if (!user || user.role !== 'STUDENT' || !enrollStudent) return;
+    if (!user || user.role !== 'STUDENT' || !enrollStudent) {
+      if (!user) {
+        toast.error('Please login to enroll in courses');
+        return;
+      }
+      return;
+    }
     
     setLoading(true);
     try {
@@ -84,10 +99,12 @@ const CourseList = ({ isAdminView = false }) => {
       
       if (result && enrollStudent) {
         await enrollStudent(courseId, user.id);
+        toast.success('Successfully enrolled in course');
         await fetchCourses(); // Refresh courses after enrollment
       }
     } catch (error) {
       console.error('Error enrolling in course:', error);
+      toast.error('Failed to enroll in course');
     } finally {
       setLoading(false);
     }
@@ -96,8 +113,9 @@ const CourseList = ({ isAdminView = false }) => {
   // Ensure courses is an array before filtering
   const filteredCourses = Array.isArray(courses) 
     ? courses.filter(course => 
-        course.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        course.description.toLowerCase().includes(searchTerm.toLowerCase())
+        course && course.title && 
+        (course.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (course.description && course.description.toLowerCase().includes(searchTerm.toLowerCase())))
       )
     : [];
   
@@ -128,6 +146,8 @@ const CourseList = ({ isAdminView = false }) => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.map(course => {
+            if (!course || !course.id) return null;
+            
             const enrollment = enrollments[course.id];
             const isEnrolled = !!enrollment;
             const progress = enrollment ? enrollment.progress : 0;
