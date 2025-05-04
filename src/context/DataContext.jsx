@@ -55,22 +55,30 @@ export const DataProvider = ({ children }) => {
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [usingMockData, setUsingMockData] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   // Load courses when component mounts
   useEffect(() => {
-    fetchCourses();
-  }, []);
+    if (!initialized) {
+      fetchCourses();
+      setInitialized(true);
+    }
+  }, [initialized]);
 
   const fetchCourses = async () => {
     setLoading(true);
     try {
+      console.log('Attempting to fetch courses from API...');
       const response = await courseAPI.getAllCourses();
-      if (response.status === 200) {
+      if (response && response.status === 200 && Array.isArray(response.data)) {
+        console.log('Courses fetched from API successfully:', response.data);
         setCourses(response.data);
         setUsingMockData(false);
+      } else {
+        throw new Error('Invalid API response format');
       }
     } catch (error) {
-      console.error('Failed to fetch courses:', error);
+      console.error('Failed to fetch courses from API, using mock data:', error);
       // Use mock data if API fails
       setCourses(MOCK_COURSES);
       setUsingMockData(true);
@@ -170,40 +178,59 @@ export const DataProvider = ({ children }) => {
   };
 
   const getAllCourses = () => {
-    // Always ensure we return an array
-    return Array.isArray(courses) ? courses : [];
+    // Always ensure we return the courses array, use mock data if empty
+    if (!Array.isArray(courses) || courses.length === 0) {
+      if (usingMockData) {
+        return MOCK_COURSES;
+      }
+      return [];
+    }
+    return courses;
   };
 
   const getCourseById = async (courseId) => {
     if (!courseId) return null;
     
     // First check if we have it in state
-    const cachedCourse = Array.isArray(courses) ? 
-      courses.find(course => course && course.id === courseId) : null;
+    const courseArray = Array.isArray(courses) ? courses : [];
+    const cachedCourse = courseArray.find(course => course && course.id === courseId);
       
-    if (cachedCourse) return cachedCourse;
+    if (cachedCourse) {
+      console.log('Found course in cache:', cachedCourse);
+      return cachedCourse;
+    }
     
-    // If not, fetch from API (or use mock)
+    // If using mock data, check mock courses
+    if (usingMockData) {
+      const mockCourse = MOCK_COURSES.find(course => course.id === courseId);
+      if (mockCourse) {
+        console.log('Found course in mock data:', mockCourse);
+        // Add to cache if not already there
+        setCourses(prev => {
+          const prevArray = Array.isArray(prev) ? prev : [];
+          if (!prevArray.some(c => c && c.id === mockCourse.id)) {
+            return [...prevArray, mockCourse];
+          }
+          return prevArray;
+        });
+        return mockCourse;
+      }
+      return null;
+    }
+    
+    // If not, fetch from API
     try {
-      if (usingMockData) {
-        const mockCourse = MOCK_COURSES.find(course => course.id === courseId);
-        if (mockCourse) {
-          // Add to cache if not already there
-          if (!courses.some(c => c && c.id === mockCourse.id)) {
-            setCourses(prev => [...prev, mockCourse]);
+      const response = await courseAPI.getCourseById(courseId);
+      if (response && response.status === 200) {
+        // Add to cache
+        setCourses(prev => {
+          const prevArray = Array.isArray(prev) ? prev : [];
+          if (!prevArray.some(c => c && c.id === response.data.id)) {
+            return [...prevArray, response.data];
           }
-          return mockCourse;
-        }
-        return null;
-      } else {
-        const response = await courseAPI.getCourseById(courseId);
-        if (response.status === 200) {
-          // Add to cache
-          if (!courses.some(c => c && c.id === response.data.id)) {
-            setCourses(prev => [...prev, response.data]);
-          }
-          return response.data;
-        }
+          return prevArray;
+        });
+        return response.data;
       }
     } catch (error) {
       console.error('Failed to get course:', error);

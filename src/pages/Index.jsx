@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../components/layouts/MainLayout';
 import { BookOpen, User, Award, ChevronRight, Users, Clock } from 'lucide-react';
@@ -7,6 +7,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { toast } from 'sonner';
 
 const features = [
   {
@@ -30,6 +31,8 @@ const Index = () => {
   const navigate = useNavigate();
   const auth = useAuth();
   const data = useData();
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
   
   // Safely access properties with null checks
   const isAuthenticated = auth?.isAuthenticated || (() => false);
@@ -37,18 +40,36 @@ const Index = () => {
   const isStudent = auth?.isStudent || (() => false);
   const user = auth?.user;
   
-  // Safely get courses data
-  let courses = [];
-  let enrolledCourses = [];
-  
-  if (data?.getAllCourses) {
-    const coursesData = data.getAllCourses();
-    // Ensure courses is an array
-    courses = Array.isArray(coursesData) ? coursesData : [];
+  useEffect(() => {
+    const fetchCourses = async () => {
+      setLoading(true);
+      try {
+        if (data?.getAllCourses) {
+          const fetchedCourses = data.getAllCourses();
+          console.log("Index page - Fetched courses:", fetchedCourses);
+          setCourses(Array.isArray(fetchedCourses) ? fetchedCourses : []);
+        }
+      } catch (error) {
+        console.error('Error fetching courses for homepage:', error);
+        toast.error('Error loading courses data');
+        setCourses([]);
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    if (user?.id && data.getEnrolledCourses) {
+    fetchCourses();
+  }, [data]); 
+  
+  // Get enrolled courses for the current user
+  let enrolledCourses = [];
+  if (user?.id && data?.getEnrolledCourses) {
+    try {
       const enrolled = data.getEnrolledCourses(user.id);
       enrolledCourses = Array.isArray(enrolled) ? enrolled : [];
+    } catch (error) {
+      console.error('Error fetching enrolled courses:', error);
+      enrolledCourses = [];
     }
   }
   
@@ -117,7 +138,11 @@ const Index = () => {
             </Button>
           </div>
           
-          {featuredCourses.length > 0 ? (
+          {loading ? (
+            <div className="flex justify-center items-center p-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          ) : featuredCourses.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {featuredCourses.map(course => (
                 <Card key={course.id} className="overflow-hidden hover:shadow-md transition-shadow">
