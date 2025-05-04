@@ -7,7 +7,7 @@ import { Input } from '../ui/input';
 import { Search, Loader2 } from 'lucide-react';
 
 const CourseList = ({ isAdminView = false }) => {
-  const { getAllCourses, getEnrolledCourses, getEnrollmentByCourseAndStudent, enrollStudent } = useData();
+  const { getAllCourses, getEnrolledCourses, getEnrollmentByCourseAndStudent, enrollStudent, usingMockData } = useData();
   const { user, enrollInCourse } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [courses, setCourses] = useState([]);
@@ -60,7 +60,11 @@ const CourseList = ({ isAdminView = false }) => {
     if (user && user.role === 'STUDENT') {
       setLoading(true);
       try {
-        const result = await enrollInCourse(courseId);
+        let result = true;
+        if (!usingMockData) {
+          result = await enrollInCourse(courseId);
+        }
+        
         if (result) {
           await enrollStudent(courseId, user.id);
           await fetchCourses(); // Refresh courses after enrollment
@@ -81,7 +85,7 @@ const CourseList = ({ isAdminView = false }) => {
   if (loading) {
     return (
       <div className="flex justify-center items-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-lms-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
