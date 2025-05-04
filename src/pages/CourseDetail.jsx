@@ -14,35 +14,54 @@ import { toast } from 'sonner';
 const CourseDetail = () => {
   const { courseId } = useParams();
   const navigate = useNavigate();
-  const { 
-    getCourseById, 
-    getEnrollmentByCourseAndStudent, 
-    enrollStudent 
-  } = useData();
-  const { user, enrollInCourse } = useAuth();
+  const data = useData();
+  const auth = useAuth();
+  
+  // Safely extract methods from contexts
+  const getCourseById = data?.getCourseById;
+  const getEnrollmentByCourseAndStudent = data?.getEnrollmentByCourseAndStudent;
+  const enrollStudent = data?.enrollStudent;
+  const user = auth?.user;
+  const enrollInCourse = auth?.enrollInCourse;
   
   const [activeModule, setActiveModule] = useState(0);
   const [course, setCourse] = useState(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [enrollment, setEnrollment] = useState(null);
+  const [loading, setLoading] = useState(true);
   
   useEffect(() => {
-    const fetchedCourse = getCourseById(courseId);
-    if (fetchedCourse) {
-      setCourse(fetchedCourse);
-    } else {
-      toast.error('Course not found');
-      navigate('/courses');
-    }
+    const fetchCourseData = async () => {
+      setLoading(true);
+      try {
+        if (getCourseById && courseId) {
+          const fetchedCourse = await getCourseById(courseId);
+          if (fetchedCourse) {
+            setCourse(fetchedCourse);
+          } else {
+            toast.error('Course not found');
+            navigate('/courses');
+          }
+        }
+        
+        if (user && getEnrollmentByCourseAndStudent && courseId) {
+          const studentEnrollment = await getEnrollmentByCourseAndStudent(courseId, user.id);
+          setIsEnrolled(!!studentEnrollment);
+          setEnrollment(studentEnrollment);
+        }
+      } catch (error) {
+        console.error('Error fetching course data:', error);
+        toast.error('Error loading course data');
+        navigate('/courses');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    if (user) {
-      const studentEnrollment = getEnrollmentByCourseAndStudent(courseId, user.id);
-      setIsEnrolled(!!studentEnrollment);
-      setEnrollment(studentEnrollment);
-    }
+    fetchCourseData();
   }, [courseId, getCourseById, getEnrollmentByCourseAndStudent, user, navigate]);
   
-  const handleEnroll = () => {
+  const handleEnroll = async () => {
     if (!user) {
       toast.error('Please login to enroll in courses');
       navigate('/login');
@@ -54,12 +73,20 @@ const CourseDetail = () => {
       return;
     }
     
-    enrollStudent(courseId, user.id);
-    enrollInCourse(courseId);
-    setIsEnrolled(true);
+    try {
+      if (enrollStudent && enrollInCourse && user) {
+        await enrollStudent(courseId, user.id);
+        await enrollInCourse(courseId);
+        setIsEnrolled(true);
+        toast.success('Successfully enrolled in the course');
+      }
+    } catch (error) {
+      console.error('Error enrolling in course:', error);
+      toast.error('Failed to enroll in course');
+    }
   };
   
-  if (!course) {
+  if (loading) {
     return (
       <MainLayout>
         <div className="container mx-auto text-center py-12">
@@ -68,6 +95,19 @@ const CourseDetail = () => {
       </MainLayout>
     );
   }
+  
+  if (!course) {
+    return (
+      <MainLayout>
+        <div className="container mx-auto text-center py-12">
+          Course not found. <Button onClick={() => navigate('/courses')}>Back to Courses</Button>
+        </div>
+      </MainLayout>
+    );
+  }
+  
+  // Ensure modules is always an array
+  const modules = Array.isArray(course.modules) ? course.modules : [];
   
   return (
     <MainLayout>
@@ -151,11 +191,11 @@ const CourseDetail = () => {
               </CardHeader>
               
               <CardContent>
-                {course.modules.length > 0 ? (
+                {modules.length > 0 ? (
                   <Tabs defaultValue="content">
                     <TabsList className="mb-4">
                       <TabsTrigger value="content">Content</TabsTrigger>
-                      {course.modules[activeModule]?.videoUrl && (
+                      {modules[activeModule]?.videoUrl && (
                         <TabsTrigger value="video">Video</TabsTrigger>
                       )}
                     </TabsList>
@@ -163,21 +203,21 @@ const CourseDetail = () => {
                     <TabsContent value="content" className="mt-0">
                       <div className="prose max-w-none">
                         <h3 className="text-xl font-bold mb-4">
-                          {course.modules[activeModule]?.title || 'No content available'}
+                          {modules[activeModule]?.title || 'No content available'}
                         </h3>
                         <div className="whitespace-pre-line">
-                          {course.modules[activeModule]?.content || 'No content available for this module.'}
+                          {modules[activeModule]?.content || 'No content available for this module.'}
                         </div>
                       </div>
                     </TabsContent>
                     
                     <TabsContent value="video" className="mt-0">
-                      {course.modules[activeModule]?.videoUrl && (
+                      {modules[activeModule]?.videoUrl && (
                         <div className="aspect-video">
                           <iframe
                             className="w-full h-full"
-                            src={course.modules[activeModule].videoUrl.replace('watch?v=', 'embed/')}
-                            title={course.modules[activeModule].title}
+                            src={modules[activeModule].videoUrl.replace('watch?v=', 'embed/')}
+                            title={modules[activeModule].title}
                             allowFullScreen
                           ></iframe>
                         </div>
