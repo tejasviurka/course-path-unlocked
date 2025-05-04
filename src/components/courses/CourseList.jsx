@@ -34,7 +34,9 @@ const CourseList = ({ isAdminView = false }) => {
       
       // Get all courses
       if (getAllCourses) {
-        fetchedCourses = getAllCourses();
+        const courseData = getAllCourses();
+        // Ensure courses is an array
+        fetchedCourses = Array.isArray(courseData) ? courseData : [];
       }
       
       // If user is a student, fetch enrollment data
@@ -45,6 +47,7 @@ const CourseList = ({ isAdminView = false }) => {
       setCourses(fetchedCourses);
     } catch (error) {
       console.error('Error fetching courses:', error);
+      setCourses([]);
     } finally {
       setLoading(false);
     }
@@ -90,10 +93,13 @@ const CourseList = ({ isAdminView = false }) => {
     }
   };
   
-  const filteredCourses = courses.filter(course => 
-    course.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    course.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Ensure courses is an array before filtering
+  const filteredCourses = Array.isArray(courses) 
+    ? courses.filter(course => 
+        course.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        course.description.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : [];
   
   if (loading) {
     return (
