@@ -28,11 +28,26 @@ const features = [
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isAdmin, isStudent } = useAuth();
-  const { getAllCourses, getEnrolledCourses } = useData();
+  const auth = useAuth();
+  const data = useData();
   
-  const courses = getAllCourses();
-  const enrolledCourses = user?.id ? getEnrolledCourses(user.id) : [];
+  // Safely access properties with null checks
+  const isAuthenticated = auth?.isAuthenticated || (() => false);
+  const isAdmin = auth?.isAdmin || (() => false);
+  const isStudent = auth?.isStudent || (() => false);
+  const user = auth?.user;
+  
+  // Safely get courses data
+  let courses = [];
+  let enrolledCourses = [];
+  
+  if (data?.getAllCourses) {
+    courses = data.getAllCourses();
+    
+    if (user?.id && data.getEnrolledCourses) {
+      enrolledCourses = data.getEnrolledCourses(user.id);
+    }
+  }
   
   return (
     <MainLayout>

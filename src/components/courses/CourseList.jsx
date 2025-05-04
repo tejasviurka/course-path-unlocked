@@ -7,16 +7,25 @@ import { Input } from '../ui/input';
 import { Search, Loader2 } from 'lucide-react';
 
 const CourseList = ({ isAdminView = false }) => {
-  const { getAllCourses, getEnrolledCourses, getEnrollmentByCourseAndStudent, enrollStudent, usingMockData } = useData();
-  const { user, enrollInCourse } = useAuth();
+  const data = useData();
+  const auth = useAuth();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState({});
   const [loading, setLoading] = useState(true);
   
+  // Safe unwrapping of methods
+  const getAllCourses = data?.getAllCourses;
+  const getEnrollmentByCourseAndStudent = data?.getEnrollmentByCourseAndStudent;
+  const enrollStudent = data?.enrollStudent;
+  const usingMockData = data?.usingMockData || false;
+  const user = auth?.user;
+  const enrollInCourse = auth?.enrollInCourse;
+  
   useEffect(() => {
     fetchCourses();
-  }, []);
+  }, [data]); // Re-fetch when data context changes
   
   const fetchCourses = async () => {
     setLoading(true);
@@ -24,10 +33,12 @@ const CourseList = ({ isAdminView = false }) => {
       let fetchedCourses = [];
       
       // Get all courses
-      fetchedCourses = getAllCourses();
+      if (getAllCourses) {
+        fetchedCourses = getAllCourses();
+      }
       
       // If user is a student, fetch enrollment data
-      if (user && user.role === 'STUDENT') {
+      if (user && user.role === 'STUDENT' && getEnrollmentByCourseAndStudent) {
         fetchEnrollmentData(fetchedCourses);
       }
       
@@ -40,6 +51,8 @@ const CourseList = ({ isAdminView = false }) => {
   };
   
   const fetchEnrollmentData = async (coursesList) => {
+    if (!getEnrollmentByCourseAndStudent || !user) return;
+    
     try {
       const enrollmentData = {};
       
@@ -57,23 +70,23 @@ const CourseList = ({ isAdminView = false }) => {
   };
   
   const handleEnroll = async (courseId) => {
-    if (user && user.role === 'STUDENT') {
-      setLoading(true);
-      try {
-        let result = true;
-        if (!usingMockData) {
-          result = await enrollInCourse(courseId);
-        }
-        
-        if (result) {
-          await enrollStudent(courseId, user.id);
-          await fetchCourses(); // Refresh courses after enrollment
-        }
-      } catch (error) {
-        console.error('Error enrolling in course:', error);
-      } finally {
-        setLoading(false);
+    if (!user || user.role !== 'STUDENT' || !enrollStudent) return;
+    
+    setLoading(true);
+    try {
+      let result = true;
+      if (!usingMockData && enrollInCourse) {
+        result = await enrollInCourse(courseId);
       }
+      
+      if (result && enrollStudent) {
+        await enrollStudent(courseId, user.id);
+        await fetchCourses(); // Refresh courses after enrollment
+      }
+    } catch (error) {
+      console.error('Error enrolling in course:', error);
+    } finally {
+      setLoading(false);
     }
   };
   
