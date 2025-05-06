@@ -59,14 +59,21 @@ api.interceptors.response.use(
 // Helper function to check if backend is reachable
 export const checkBackendConnection = async () => {
   try {
-    const response = await api.get('/health', { timeout: 2000 });
+    // First try the health endpoint
+    const response = await api.get('/health', { timeout: 3000 });
     return { connected: true, status: response.status };
   } catch (error) {
-    return { 
-      connected: false, 
-      error: error.message,
-      details: error.response?.status || 'No response'
-    };
+    // If health endpoint fails, try a basic endpoint like courses
+    try {
+      const fallbackResponse = await api.get('/courses/all', { timeout: 3000 });
+      return { connected: true, status: fallbackResponse.status };
+    } catch (fallbackError) {
+      return { 
+        connected: false, 
+        error: fallbackError.message,
+        details: fallbackError.response?.status || 'No response'
+      };
+    }
   }
 };
 
@@ -112,6 +119,20 @@ export const courseAPI = {
     
   updateProgress: (courseId, moduleId, completed) => 
     api.post(`/courses/progress/${courseId}`, { moduleId, completed }),
+    
+  // Quiz endpoints
+  getQuizForCourse: (courseId) => 
+    api.get(`/courses/${courseId}/quiz`),
+    
+  submitQuizAnswers: (courseId, answers) => 
+    api.post(`/courses/${courseId}/quiz/submit`, { answers }),
+    
+  // Certificate endpoints
+  getCertificates: () => 
+    api.get('/certificates'),
+    
+  getCertificateForCourse: (courseId) => 
+    api.get(`/certificates/${courseId}`),
 };
 
 export default api;

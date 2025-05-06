@@ -6,6 +6,8 @@ import { useAuth } from '../../context/AuthContext';
 import { Input } from '../ui/input';
 import { Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import ConnectionStatus from '../auth/ConnectionStatus';
+import { checkBackendConnection } from '../../services/api';
 
 const CourseList = ({ isAdminView = false }) => {
   const data = useData();
@@ -16,6 +18,12 @@ const CourseList = ({ isAdminView = false }) => {
   const [enrollments, setEnrollments] = useState({});
   const [loading, setLoading] = useState(true);
   
+  // Backend connection states
+  const [checking, setChecking] = useState(true);
+  const [connected, setConnected] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [isRetrying, setIsRetrying] = useState(false);
+  
   // Safe unwrapping of methods
   const getAllCourses = data?.getAllCourses;
   const getEnrollmentByCourseAndStudent = data?.getEnrollmentByCourseAndStudent;
@@ -24,8 +32,30 @@ const CourseList = ({ isAdminView = false }) => {
   const user = auth?.user;
   const enrollInCourse = auth?.enrollInCourse;
   
+  // Check backend connection
+  const checkConnection = async () => {
+    setChecking(true);
+    setIsRetrying(true);
+    try {
+      const result = await checkBackendConnection();
+      setConnected(result.connected);
+      if (result.connected) {
+        fetchCourses();
+      } else {
+        setApiError(result.error || 'Server connection failed');
+      }
+    } catch (error) {
+      console.error('Connection check error:', error);
+      setConnected(false);
+      setApiError('Error checking server connection');
+    } finally {
+      setChecking(false);
+      setIsRetrying(false);
+    }
+  };
+  
   useEffect(() => {
-    fetchCourses();
+    checkConnection();
   }, [data]); // Re-fetch when data context changes
   
   const fetchCourses = async () => {
@@ -82,11 +112,13 @@ const CourseList = ({ isAdminView = false }) => {
   };
   
   const handleEnroll = async (courseId) => {
-    if (!user || user.role !== 'STUDENT' || !enrollStudent) {
-      if (!user) {
-        toast.error('Please login to enroll in courses');
-        return;
-      }
+    if (!user) {
+      toast.error('Please login to enroll in courses');
+      return;
+    }
+    
+    if (user.role !== 'STUDENT') {
+      toast.error('Only students can enroll in courses');
       return;
     }
     
@@ -119,16 +151,36 @@ const CourseList = ({ isAdminView = false }) => {
       )
     : [];
   
-  if (loading) {
+  if (loading && !connected) {
     return (
-      <div className="flex justify-center items-center p-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div>
+        <ConnectionStatus
+          checking={checking}
+          connected={connected}
+          apiError={apiError}
+          onRetryConnection={checkConnection}
+          isLoading={isRetrying}
+        />
+        
+        <div className="flex justify-center items-center p-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
       </div>
     );
   }
   
   return (
     <div>
+      {!connected && (
+        <ConnectionStatus
+          checking={checking}
+          connected={connected}
+          apiError={apiError}
+          onRetryConnection={checkConnection}
+          isLoading={isRetrying}
+        />
+      )}
+      
       <div className="mb-6 relative">
         <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
         <Input
@@ -139,7 +191,11 @@ const CourseList = ({ isAdminView = false }) => {
         />
       </div>
       
-      {filteredCourses.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center items-center p-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : filteredCourses.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-gray-500">No courses found.</p>
         </div>

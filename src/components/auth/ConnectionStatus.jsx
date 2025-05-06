@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Loader2, WifiOff } from 'lucide-react';
+import { Loader2, WifiOff, CheckCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '../ui/alert';
 import { Button } from '../ui/button';
 
@@ -9,7 +9,8 @@ const ConnectionStatus = ({
   connected, 
   apiError, 
   onRetryConnection, 
-  isLoading 
+  isLoading,
+  showConnected = false
 }) => {
   if (checking) {
     return (
@@ -30,11 +31,21 @@ const ConnectionStatus = ({
             variant="outline" 
             size="sm" 
             onClick={onRetryConnection}
+            disabled={isLoading}
           >
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             Retry Connection
           </Button>
         </div>
+      </Alert>
+    );
+  }
+  
+  if (connected && showConnected) {
+    return (
+      <Alert variant="default" className="mb-4 bg-green-50 border-green-200">
+        <CheckCircle className="h-4 w-4 text-green-500" />
+        <AlertDescription>Connected to server</AlertDescription>
       </Alert>
     );
   }
