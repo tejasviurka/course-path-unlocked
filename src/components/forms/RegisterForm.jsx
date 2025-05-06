@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { Loader2, AlertCircle, WifiOff } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
-import { Alert, AlertDescription } from '../ui/alert';
-import { toast } from '../ui/toaster';
-import { checkBackendConnection } from '../../services/api';
+import { toast } from 'sonner';
+import { validateRegisterForm } from '../../utils/formValidation';
+import { useBackendCheck } from '../../hooks/useBackendCheck';
+import ConnectionStatus from '../auth/ConnectionStatus';
+import ApiErrorAlert from '../auth/ApiErrorAlert';
+import RegisterFormFields from '../auth/RegisterFormFields';
 
 const RegisterForm = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
-  const [apiError, setApiError] = useState('');
-  const [backendStatus, setBackendStatus] = useState({ checking: true, connected: true });
+  const { backendStatus, apiError, setApiError, handleRetryConnection } = useBackendCheck();
+  
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -25,23 +26,8 @@ const RegisterForm = () => {
     name: '',
     role: 'STUDENT'
   });
+  
   const [errors, setErrors] = useState({});
-
-  // Check if backend is reachable on component mount
-  useEffect(() => {
-    const checkConnection = async () => {
-      setBackendStatus({ checking: true, connected: true });
-      const status = await checkBackendConnection();
-      setBackendStatus({ checking: false, connected: status.connected });
-      
-      if (!status.connected) {
-        setApiError('Cannot connect to server. Please make sure your backend is running.');
-        console.error('Backend connection failed:', status);
-      }
-    };
-    
-    checkConnection();
-  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,51 +42,22 @@ const RegisterForm = () => {
     }
   };
 
-  const validate = () => {
-    const newErrors = {};
-    
-    if (!formData.username.trim()) {
-      newErrors.username = 'Username is required';
-    } else if (formData.username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters';
-    }
-    
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
-    }
-    
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-    
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleRoleChange = (value) => {
+    setFormData(prev => ({ ...prev, role: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validate()) return;
+    const validation = validateRegisterForm(formData);
+    if (!validation.isValid) {
+      setErrors(validation.errors);
+      return;
+    }
     
     if (!backendStatus.connected) {
-      // Try to check the connection again
-      const status = await checkBackendConnection();
-      setBackendStatus({ checking: false, connected: status.connected });
-      
-      if (!status.connected) {
-        setApiError('Cannot connect to server. Please make sure your backend is running on http://localhost:8080.');
+      const status = await handleRetryConnection();
+      if (!status?.connected) {
         return;
       }
     }
@@ -135,7 +92,7 @@ const RegisterForm = () => {
       if (error.response) {
         // Server responded with an error status
         errorMessage = error.response.data?.message || 
-                     `Server error: ${error.response.status}`;
+                      `Server error: ${error.response.status}`;
                      
         // Handle specific status codes
         if (error.response.status === 404) {
@@ -157,19 +114,6 @@ const RegisterForm = () => {
     }
   };
 
-  const handleRetryConnection = async () => {
-    setBackendStatus({ checking: true, connected: false });
-    const status = await checkBackendConnection();
-    setBackendStatus({ checking: false, connected: status.connected });
-    
-    if (status.connected) {
-      setApiError('');
-      toast.success('Connected to server successfully!');
-    } else {
-      setApiError('Cannot connect to server. Please make sure your backend is running on http://localhost:8080.');
-    }
-  };
-
   return (
     <div className="flex justify-center items-center">
       <Card className="w-full max-w-md">
@@ -180,129 +124,23 @@ const RegisterForm = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {backendStatus.checking ? (
-            <Alert className="mb-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <AlertDescription>Checking server connection...</AlertDescription>
-            </Alert>
-          ) : !backendStatus.connected ? (
-            <Alert variant="destructive" className="mb-4">
-              <WifiOff className="h-4 w-4" />
-              <div className="flex flex-col space-y-2">
-                <AlertDescription>{apiError || 'Server connection failed. Please make sure your backend is running.'}</AlertDescription>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleRetryConnection}
-                >
-                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Retry Connection
-                </Button>
-              </div>
-            </Alert>
-          ) : apiError ? (
-            <Alert variant="destructive" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{apiError}</AlertDescription>
-            </Alert>
-          ) : null}
+          <ConnectionStatus 
+            checking={backendStatus.checking}
+            connected={backendStatus.connected}
+            apiError={apiError}
+            onRetryConnection={handleRetryConnection}
+            isLoading={isLoading}
+          />
+          
+          <ApiErrorAlert error={apiError} />
           
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                placeholder="Enter your full name"
-                className={errors.name ? 'border-red-500' : ''}
-              />
-              {errors.name && (
-                <p className="text-sm text-red-500">{errors.name}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                name="username"
-                value={formData.username}
-                onChange={handleChange}
-                placeholder="Choose a username"
-                className={errors.username ? 'border-red-500' : ''}
-              />
-              {errors.username && (
-                <p className="text-sm text-red-500">{errors.username}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="Enter your email"
-                className={errors.email ? 'border-red-500' : ''}
-              />
-              {errors.email && (
-                <p className="text-sm text-red-500">{errors.email}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Create a password"
-                className={errors.password ? 'border-red-500' : ''}
-              />
-              {errors.password && (
-                <p className="text-sm text-red-500">{errors.password}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="Confirm your password"
-                className={errors.confirmPassword ? 'border-red-500' : ''}
-              />
-              {errors.confirmPassword && (
-                <p className="text-sm text-red-500">{errors.confirmPassword}</p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Account Type</Label>
-              <RadioGroup 
-                value={formData.role} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
-                className="flex space-x-4"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="STUDENT" id="student" />
-                  <Label htmlFor="student">Student</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="ADMIN" id="admin" />
-                  <Label htmlFor="admin">Admin</Label>
-                </div>
-              </RadioGroup>
-            </div>
+            <RegisterFormFields 
+              formData={formData}
+              handleChange={handleChange}
+              errors={errors}
+              onRoleChange={handleRoleChange}
+            />
             
             <div className="pt-2">
               <Button 
