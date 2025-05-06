@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -81,6 +80,12 @@ const RegisterForm = () => {
     setApiError('');
     
     try {
+      // Log the request for debugging
+      console.log('Attempting to register with:', {
+        ...formData, 
+        password: '[REDACTED]'
+      });
+      
       const result = await register(formData);
       
       if (result.success) {
@@ -94,10 +99,30 @@ const RegisterForm = () => {
       }
     } catch (error) {
       console.error('Registration error:', error);
-      setApiError(
-        error.response?.data?.message || 
-        'Unable to connect to the server. Please try again later.'
-      );
+      
+      // More specific error handling
+      let errorMessage = 'Registration failed';
+      
+      if (error.response) {
+        // Server responded with an error status
+        errorMessage = error.response.data?.message || 
+                     `Server error: ${error.response.status}`;
+                     
+        // Handle specific status codes
+        if (error.response.status === 404) {
+          errorMessage = 'Cannot connect to registration service. Please try again later.';
+        } else if (error.response.status === 409) {
+          errorMessage = 'Username or email already exists.';
+        }
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = 'No response from server. Please check your connection.';
+      } else {
+        // Error in setting up the request
+        errorMessage = error.message || 'An unknown error occurred';
+      }
+      
+      setApiError(errorMessage);
     } finally {
       setIsLoading(false);
     }

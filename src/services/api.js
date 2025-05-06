@@ -1,9 +1,12 @@
 
 import axios from 'axios';
 
-// Update the API_URL to use a relative path instead of localhost
-// This will ensure requests are sent to the same origin as the frontend
-const API_URL = '/api';
+// Configure the API URL based on the environment
+// For local development, use the full server URL
+// In production, the relative path will work with proper proxy configuration
+const API_URL = import.meta.env.DEV 
+  ? 'http://localhost:8080/api' 
+  : '/api';
 
 // Create axios instance
 const api = axios.create({
@@ -23,6 +26,16 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// Add response interceptor for better error handling
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Log the error for debugging
+    console.error('API Error:', error.message, error.response || 'No response');
+    return Promise.reject(error);
+  }
 );
 
 // Authentication endpoints
