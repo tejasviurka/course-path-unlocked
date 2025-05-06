@@ -1,8 +1,9 @@
 
 import axios from 'axios';
 
-// Use backend server URL with appropriate port
-const API_URL = 'http://localhost:8080/api';
+// Update the API_URL to use a relative path instead of localhost
+// This will ensure requests are sent to the same origin as the frontend
+const API_URL = '/api';
 
 // Create axios instance
 const api = axios.create({

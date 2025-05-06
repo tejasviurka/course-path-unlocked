@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { authAPI } from '../services/api';
@@ -66,9 +65,10 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       setLoading(true);
+      console.log('Registering user:', userData);
       const response = await authAPI.register(userData);
       
-      if (response.status === 200) {
+      if (response && response.status === 200) {
         toast.success('Registration successful! Please log in.');
         return { success: true };
       } else {
@@ -77,7 +77,20 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Registration error:', error);
-      const errorMessage = error.response?.data?.message || 'Registration failed';
+      let errorMessage = 'Registration failed';
+      
+      if (error.response) {
+        // Server responded with an error
+        errorMessage = error.response.data?.message || 
+                      `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = 'No response from server. Please check your connection.';
+      } else {
+        // Error in setting up the request
+        errorMessage = error.message || 'An unknown error occurred';
+      }
+      
       toast.error(errorMessage);
       return { success: false, message: errorMessage };
     } finally {

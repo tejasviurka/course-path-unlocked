@@ -6,13 +6,16 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
+import { Alert, AlertDescription } from '../ui/alert';
+import { toast } from '../ui/toaster';
 
 const RegisterForm = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState('');
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -29,6 +32,10 @@ const RegisterForm = () => {
     // Clear error when user types
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    // Clear API error when user makes changes
+    if (apiError) {
+      setApiError('');
     }
   };
 
@@ -71,18 +78,26 @@ const RegisterForm = () => {
     if (!validate()) return;
     
     setIsLoading(true);
+    setApiError('');
     
     try {
       const result = await register(formData);
       
       if (result.success) {
+        toast.success('Registration successful! Please log in.');
         // Redirect to login page after successful registration
         setTimeout(() => {
           navigate('/login');
-        }, 1000);
+        }, 1500);
+      } else {
+        setApiError(result.message || 'Registration failed. Please try again.');
       }
     } catch (error) {
       console.error('Registration error:', error);
+      setApiError(
+        error.response?.data?.message || 
+        'Unable to connect to the server. Please try again later.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -98,6 +113,13 @@ const RegisterForm = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {apiError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{apiError}</AlertDescription>
+            </Alert>
+          )}
+          
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
