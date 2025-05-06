@@ -14,6 +14,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // Add a timeout to prevent hanging requests
+  timeout: 10000,
 });
 
 // Add a request interceptor to add the JWT token to requests
@@ -23,9 +25,16 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Log outgoing requests in development
+    if (import.meta.env.DEV) {
+      console.log(`Request: ${config.method.toUpperCase()} ${config.url}`);
+    }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    console.error('Request error:', error);
+    return Promise.reject(error);
+  }
 );
 
 // Add response interceptor for better error handling
@@ -33,10 +42,33 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     // Log the error for debugging
-    console.error('API Error:', error.message, error.response || 'No response');
+    if (error.response) {
+      // The server responded with a status code outside the 2xx range
+      console.error('API Error:', error.message, error.response.status, error.response.data);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('API Error: No response received. The server might be down or unreachable.');
+    } else {
+      // Something happened in setting up the request
+      console.error('API Error:', error.message);
+    }
     return Promise.reject(error);
   }
 );
+
+// Helper function to check if backend is reachable
+export const checkBackendConnection = async () => {
+  try {
+    const response = await api.get('/health', { timeout: 2000 });
+    return { connected: true, status: response.status };
+  } catch (error) {
+    return { 
+      connected: false, 
+      error: error.message,
+      details: error.response?.status || 'No response'
+    };
+  }
+};
 
 // Authentication endpoints
 export const authAPI = {

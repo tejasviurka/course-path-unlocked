@@ -1,20 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, WifiOff } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/card';
 import { Alert, AlertDescription } from '../ui/alert';
 import { toast } from '../ui/toaster';
+import { checkBackendConnection } from '../../services/api';
 
 const RegisterForm = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
+  const [backendStatus, setBackendStatus] = useState({ checking: true, connected: true });
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -24,6 +26,22 @@ const RegisterForm = () => {
     role: 'STUDENT'
   });
   const [errors, setErrors] = useState({});
+
+  // Check if backend is reachable on component mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      setBackendStatus({ checking: true, connected: true });
+      const status = await checkBackendConnection();
+      setBackendStatus({ checking: false, connected: status.connected });
+      
+      if (!status.connected) {
+        setApiError('Cannot connect to server. Please make sure your backend is running.');
+        console.error('Backend connection failed:', status);
+      }
+    };
+    
+    checkConnection();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -76,6 +94,17 @@ const RegisterForm = () => {
     
     if (!validate()) return;
     
+    if (!backendStatus.connected) {
+      // Try to check the connection again
+      const status = await checkBackendConnection();
+      setBackendStatus({ checking: false, connected: status.connected });
+      
+      if (!status.connected) {
+        setApiError('Cannot connect to server. Please make sure your backend is running on http://localhost:8080.');
+        return;
+      }
+    }
+    
     setIsLoading(true);
     setApiError('');
     
@@ -116,7 +145,7 @@ const RegisterForm = () => {
         }
       } else if (error.request) {
         // Request was made but no response received
-        errorMessage = 'No response from server. Please check your connection.';
+        errorMessage = 'No response from server. Make sure your backend is running on http://localhost:8080.';
       } else {
         // Error in setting up the request
         errorMessage = error.message || 'An unknown error occurred';
@@ -125,6 +154,19 @@ const RegisterForm = () => {
       setApiError(errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRetryConnection = async () => {
+    setBackendStatus({ checking: true, connected: false });
+    const status = await checkBackendConnection();
+    setBackendStatus({ checking: false, connected: status.connected });
+    
+    if (status.connected) {
+      setApiError('');
+      toast.success('Connected to server successfully!');
+    } else {
+      setApiError('Cannot connect to server. Please make sure your backend is running on http://localhost:8080.');
     }
   };
 
@@ -138,12 +180,32 @@ const RegisterForm = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {apiError && (
+          {backendStatus.checking ? (
+            <Alert className="mb-4">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertDescription>Checking server connection...</AlertDescription>
+            </Alert>
+          ) : !backendStatus.connected ? (
+            <Alert variant="destructive" className="mb-4">
+              <WifiOff className="h-4 w-4" />
+              <div className="flex flex-col space-y-2">
+                <AlertDescription>{apiError || 'Server connection failed. Please make sure your backend is running.'}</AlertDescription>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleRetryConnection}
+                >
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Retry Connection
+                </Button>
+              </div>
+            </Alert>
+          ) : apiError ? (
             <Alert variant="destructive" className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{apiError}</AlertDescription>
             </Alert>
-          )}
+          ) : null}
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -243,7 +305,11 @@ const RegisterForm = () => {
             </div>
             
             <div className="pt-2">
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isLoading || !backendStatus.connected}
+              >
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
