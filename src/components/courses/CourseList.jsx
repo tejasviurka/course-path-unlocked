@@ -7,6 +7,7 @@ import { Input } from '../ui/input';
 import { Search, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ConnectionStatus from '../auth/ConnectionStatus';
+import ApiErrorAlert from '../auth/ApiErrorAlert';
 import { checkBackendConnection } from '../../services/api';
 
 const CourseList = ({ isAdminView = false }) => {
@@ -17,6 +18,7 @@ const CourseList = ({ isAdminView = false }) => {
   const [courses, setCourses] = useState([]);
   const [enrollments, setEnrollments] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
   // Backend connection states
   const [checking, setChecking] = useState(true);
@@ -60,6 +62,7 @@ const CourseList = ({ isAdminView = false }) => {
   
   const fetchCourses = async () => {
     setLoading(true);
+    setError(null);
     try {
       // Get all courses
       if (getAllCourses) {
@@ -78,11 +81,13 @@ const CourseList = ({ isAdminView = false }) => {
         }
       } else {
         console.error('getAllCourses function not available');
+        setError('Error loading courses data');
         toast.error('Error loading courses data');
         setCourses([]);
       }
     } catch (error) {
       console.error('Error fetching courses:', error);
+      setError('Error loading courses');
       toast.error('Error loading courses');
       setCourses([]);
     } finally {
@@ -124,16 +129,30 @@ const CourseList = ({ isAdminView = false }) => {
     
     setLoading(true);
     try {
-      let result = true;
-      if (!usingMockData && enrollInCourse) {
+      let result = null;
+      
+      // First enroll in the course through the auth context
+      if (enrollInCourse) {
         result = await enrollInCourse(courseId);
       }
       
-      if (result && enrollStudent) {
-        await enrollStudent(courseId, user.id);
-        toast.success('Successfully enrolled in course');
-        await fetchCourses(); // Refresh courses after enrollment
+      // Then register the enrollment through the data context
+      if (enrollStudent) {
+        const enrollment = await enrollStudent(courseId, user.id);
+        if (enrollment) {
+          // Update local enrollment data
+          setEnrollments(prev => ({
+            ...prev,
+            [courseId]: enrollment
+          }));
+          toast.success('Successfully enrolled in course');
+          // Refresh courses to update the UI
+          await fetchCourses();
+          return;
+        }
       }
+      
+      toast.error('Failed to enroll in course');
     } catch (error) {
       console.error('Error enrolling in course:', error);
       toast.error('Failed to enroll in course');
@@ -180,6 +199,8 @@ const CourseList = ({ isAdminView = false }) => {
           isLoading={isRetrying}
         />
       )}
+      
+      {error && <ApiErrorAlert error={error} className="mb-4" />}
       
       <div className="mb-6 relative">
         <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />

@@ -19,6 +19,7 @@ import AdminCreateCourse from "./pages/AdminCreateCourse";
 import AdminEditCourse from "./pages/AdminEditCourse";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ const AppRoutes = () => {
       <Route path="/register" element={<Register />} />
       <Route path="/courses" element={<Courses />} />
       <Route path="/courses/:courseId" element={<CourseDetail />} />
+      <Route path="/profile" element={<Profile />} />
       
       {/* Student Routes */}
       <Route path="/dashboard" element={

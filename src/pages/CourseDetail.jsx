@@ -10,6 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import ModuleProgress from '../components/student/ModuleProgress';
 import { toast } from 'sonner';
+import ConnectionStatus from '../components/auth/ConnectionStatus';
+import ApiErrorAlert from '../components/auth/ApiErrorAlert';
+import { checkBackendConnection } from '../services/api';
 
 const CourseDetail = () => {
   const { courseId } = useParams();
@@ -29,37 +32,69 @@ const CourseDetail = () => {
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [enrollment, setEnrollment] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [enrolling, setEnrolling] = useState(false);
+  
+  // Backend connection states
+  const [checking, setChecking] = useState(true);
+  const [connected, setConnected] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [isRetrying, setIsRetrying] = useState(false);
+  
+  // Check backend connection
+  const checkConnection = async () => {
+    setChecking(true);
+    setIsRetrying(true);
+    try {
+      const result = await checkBackendConnection();
+      setConnected(result.connected);
+      if (result.connected) {
+        fetchCourseData();
+      } else {
+        setApiError(result.error || 'Server connection failed');
+      }
+    } catch (error) {
+      console.error('Connection check error:', error);
+      setConnected(false);
+      setApiError('Error checking server connection');
+    } finally {
+      setChecking(false);
+      setIsRetrying(false);
+    }
+  };
   
   useEffect(() => {
-    const fetchCourseData = async () => {
-      setLoading(true);
-      try {
-        if (getCourseById && courseId) {
-          const fetchedCourse = await getCourseById(courseId);
-          if (fetchedCourse) {
-            setCourse(fetchedCourse);
-          } else {
-            toast.error('Course not found');
-            navigate('/courses');
-          }
+    checkConnection();
+  }, [courseId]); 
+  
+  const fetchCourseData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (getCourseById && courseId) {
+        const fetchedCourse = await getCourseById(courseId);
+        if (fetchedCourse) {
+          setCourse(fetchedCourse);
+        } else {
+          setError('Course not found');
+          toast.error('Course not found');
+          navigate('/courses');
         }
-        
-        if (user && getEnrollmentByCourseAndStudent && courseId) {
-          const studentEnrollment = await getEnrollmentByCourseAndStudent(courseId, user.id);
-          setIsEnrolled(!!studentEnrollment);
-          setEnrollment(studentEnrollment);
-        }
-      } catch (error) {
-        console.error('Error fetching course data:', error);
-        toast.error('Error loading course data');
-        navigate('/courses');
-      } finally {
-        setLoading(false);
       }
-    };
-    
-    fetchCourseData();
-  }, [courseId, getCourseById, getEnrollmentByCourseAndStudent, user, navigate]);
+      
+      if (user && getEnrollmentByCourseAndStudent && courseId) {
+        const studentEnrollment = await getEnrollmentByCourseAndStudent(courseId, user.id);
+        setIsEnrolled(!!studentEnrollment);
+        setEnrollment(studentEnrollment);
+      }
+    } catch (error) {
+      console.error('Error fetching course data:', error);
+      setError('Error loading course data');
+      toast.error('Error loading course data');
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const handleEnroll = async () => {
     if (!user) {
@@ -73,24 +108,55 @@ const CourseDetail = () => {
       return;
     }
     
+    setEnrolling(true);
     try {
-      if (enrollStudent && enrollInCourse && user) {
-        await enrollStudent(courseId, user.id);
+      // First enroll in the course through the auth context
+      if (enrollInCourse) {
         await enrollInCourse(courseId);
-        setIsEnrolled(true);
-        toast.success('Successfully enrolled in the course');
       }
+      
+      // Then register the enrollment through the data context
+      if (enrollStudent) {
+        const newEnrollment = await enrollStudent(courseId, user.id);
+        if (newEnrollment) {
+          setIsEnrolled(true);
+          setEnrollment(newEnrollment);
+          toast.success('Successfully enrolled in the course');
+          // Re-fetch course to update enrolledStudents count
+          if (getCourseById) {
+            const updatedCourse = await getCourseById(courseId);
+            if (updatedCourse) {
+              setCourse(updatedCourse);
+            }
+          }
+          return;
+        }
+      }
+      
+      toast.error('Failed to enroll in course');
     } catch (error) {
       console.error('Error enrolling in course:', error);
       toast.error('Failed to enroll in course');
+    } finally {
+      setEnrolling(false);
     }
   };
   
-  if (loading) {
+  if (loading && !connected) {
     return (
       <MainLayout>
-        <div className="container mx-auto text-center py-12">
-          Loading course...
+        <div className="container mx-auto">
+          <ConnectionStatus
+            checking={checking}
+            connected={connected}
+            apiError={apiError}
+            onRetryConnection={checkConnection}
+            isLoading={isRetrying}
+          />
+          
+          <div className="text-center py-12">
+            Loading course...
+          </div>
         </div>
       </MainLayout>
     );
@@ -99,8 +165,22 @@ const CourseDetail = () => {
   if (!course) {
     return (
       <MainLayout>
-        <div className="container mx-auto text-center py-12">
-          Course not found. <Button onClick={() => navigate('/courses')}>Back to Courses</Button>
+        <div className="container mx-auto">
+          {!connected && (
+            <ConnectionStatus
+              checking={checking}
+              connected={connected}
+              apiError={apiError}
+              onRetryConnection={checkConnection}
+              isLoading={isRetrying}
+            />
+          )}
+          
+          {error && <ApiErrorAlert error={error} />}
+          
+          <div className="text-center py-12">
+            Course not found. <Button onClick={() => navigate('/courses')}>Back to Courses</Button>
+          </div>
         </div>
       </MainLayout>
     );
@@ -112,6 +192,18 @@ const CourseDetail = () => {
   return (
     <MainLayout>
       <div className="container mx-auto">
+        {!connected && (
+          <ConnectionStatus
+            checking={checking}
+            connected={connected}
+            apiError={apiError}
+            onRetryConnection={checkConnection}
+            isLoading={isRetrying}
+          />
+        )}
+        
+        {error && <ApiErrorAlert error={error} />}
+        
         <Button 
           variant="ghost" 
           className="mb-4"
@@ -153,8 +245,18 @@ const CourseDetail = () => {
               </div>
               
               {!isEnrolled && user?.role === 'STUDENT' && (
-                <Button onClick={handleEnroll} className="shrink-0">
-                  Enroll Now
+                <Button 
+                  onClick={handleEnroll} 
+                  className="shrink-0"
+                  disabled={enrolling}
+                >
+                  {enrolling ? 'Enrolling...' : 'Enroll Now'}
+                </Button>
+              )}
+              
+              {isEnrolled && (
+                <Button onClick={() => navigate('/profile')} variant="outline" className="shrink-0">
+                  View My Profile
                 </Button>
               )}
             </div>

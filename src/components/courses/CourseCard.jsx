@@ -7,6 +7,13 @@ import { Badge } from '../ui/badge';
 import { Users, Clock, Award } from 'lucide-react';
 
 const CourseCard = ({ course, enrolled = false, progress = 0, admin = false, onEnroll }) => {
+  const handleEnrollClick = (e) => {
+    e.preventDefault(); // Prevent navigation
+    if (onEnroll) {
+      onEnroll(course.id);
+    }
+  };
+
   return (
     <Card className="overflow-hidden hover:shadow-md transition-shadow">
       <div className="relative h-48 overflow-hidden">
@@ -79,7 +86,7 @@ const CourseCard = ({ course, enrolled = false, progress = 0, admin = false, onE
             <Button 
               variant="default" 
               className="flex-1" 
-              onClick={() => onEnroll && onEnroll(course.id)}
+              onClick={handleEnrollClick}
             >
               Enroll
             </Button>
