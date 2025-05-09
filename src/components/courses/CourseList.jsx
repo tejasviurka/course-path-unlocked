@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import CourseCard from './CourseCard';
-import { useData } from '../../context/DataContext';
+import { useData } from '../../context/data'; // Updated import
 import { useAuth } from '../../context/AuthContext';
 import { Input } from '../ui/input';
 import { Search, Loader2 } from 'lucide-react';

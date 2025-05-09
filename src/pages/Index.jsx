@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../components/layouts/MainLayout';
@@ -6,7 +5,7 @@ import { BookOpen, User, Award, ChevronRight, Users, Clock } from 'lucide-react'
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { useAuth } from '../context/AuthContext';
-import { useData } from '../context/DataContext';
+import { useData } from '../context/data';
 import { toast } from 'sonner';
 
 const features = [

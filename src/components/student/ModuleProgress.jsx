@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useData } from '../../context/DataContext';
+import { useData } from '../../context/data'; // Updated import
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { CheckCircle, Circle, PlayCircle } from 'lucide-react';

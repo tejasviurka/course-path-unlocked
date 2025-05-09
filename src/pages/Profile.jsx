@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import MainLayout from '../components/layouts/MainLayout';
 import { useAuth } from '../context/AuthContext';
-import { useData } from '../context/DataContext';
+import { useData } from '../context/data'; // Updated import
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Progress } from '../components/ui/progress';
 import { Button } from '../components/ui/button';

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { checkBackendConnection } from '../services/api';
-import { useData } from '../context/DataContext';
+import { useData } from '../context/data'; // Updated import
 import { useAuth } from '../context/AuthContext';
 
 export const useCourseDetail = (courseId) => {
